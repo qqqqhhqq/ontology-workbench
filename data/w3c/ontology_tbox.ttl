@@ -1,0 +1,571 @@
+@prefix b2b:  <https://ontology.example.com/b2b-fulfillment#> .
+@prefix res:  <https://ontology.example.com/b2b-fulfillment/resource/> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+<https://ontology.example.com/b2b-fulfillment> a owl:Ontology ;
+    dcterms:identifier "b2b-office-fulfillment" ;
+    rdfs:label "B2B 办公设备与耗材订单履约本体"@zh ;
+    owl:versionInfo "1.0.0" ;
+    b2b:asOfDate "2026-11-23"^^xsd:date ;
+    rdfs:comment "由 ontology/schema.yaml 自动生成的 W3C OWL 2 / RDFS 本体模式层（TBox）。"@zh .
+
+# =============================================================================
+# 1. 本体类定义（OWL Classes）
+# =============================================================================
+b2b:Customer a owl:Class ;
+    rdfs:label "客户（业务参与方）"@zh ;
+    rdfs:comment "真实世界中与公司存在销售跟进或交易关系的企业、个体户或个人，统一收口 CRM Account 与 ERP Customer。"@zh .
+
+b2b:SalesOwner a owl:Class ;
+    rdfs:label "销售负责人"@zh ;
+    rdfs:comment "负责跟进和维护客户关系的内部销售人员。"@zh .
+
+b2b:ProductCategory a owl:Class ;
+    rdfs:label "产品分类"@zh ;
+    rdfs:comment "标准树形产品分类节点，支持沿上级关系做传递闭包聚合。"@zh .
+
+b2b:Product a owl:Class ;
+    rdfs:label "产品（SKU）"@zh ;
+    rdfs:comment "企业经销的办公设备或耗材商品。"@zh .
+
+b2b:SalesOrder a owl:Class ;
+    rdfs:label "销售订单"@zh ;
+    rdfs:comment "客户下达的采购承诺，是串联 CRM 客户、ERP 交易与 WMS 履约的核心枢纽对象。"@zh .
+
+b2b:OrderLine a owl:Class ;
+    rdfs:label "订单明细行"@zh ;
+    rdfs:comment "销售订单中的单个商品采购条目。"@zh .
+
+b2b:Shipment a owl:Class ;
+    rdfs:label "仓储发货单"@zh ;
+    rdfs:comment "WMS 产生的实际出库与物流凭证，是“是否有效发货”的唯一权威事实源。"@zh .
+
+b2b:DataQualityIssue a owl:Class ;
+    rdfs:label "数据质量与一致性异常"@zh ;
+    rdfs:comment "将现实企业数据中的冲突、缺失与不合规作为本体一等公民显式记录，支持审计追踪与持续治理。"@zh .
+
+# =============================================================================
+# 2. 受控词表（SKOS ConceptScheme + OWL Enumerated Individuals）
+# =============================================================================
+b2b:PartyTypeScheme a skos:ConceptScheme ;
+    rdfs:label "PartyType" ;
+    rdfs:comment "参与方（客户）法律主体类型"@zh .
+
+b2b:PartyType_ORGANIZATION a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:PartyTypeScheme ;
+    skos:notation "ORGANIZATION" ;
+    skos:prefLabel "企业"@zh .
+
+b2b:PartyType_SOLE_PROPRIETOR a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:PartyTypeScheme ;
+    skos:notation "SOLE_PROPRIETOR" ;
+    skos:prefLabel "个体工商户"@zh .
+
+b2b:PartyType_INDIVIDUAL a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:PartyTypeScheme ;
+    skos:notation "INDIVIDUAL" ;
+    skos:prefLabel "个人"@zh .
+
+b2b:CustomerTierScheme a skos:ConceptScheme ;
+    rdfs:label "CustomerTier" ;
+    rdfs:comment "客户价值分层（语义裁决：VIP 与大客户显式区分）"@zh .
+
+b2b:CustomerTier_VIP a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CustomerTierScheme ;
+    skos:notation "VIP" ;
+    skos:prefLabel "VIP 客户"@zh .
+
+b2b:CustomerTier_KEY_ACCOUNT a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CustomerTierScheme ;
+    skos:notation "KEY_ACCOUNT" ;
+    skos:prefLabel "大客户"@zh .
+
+b2b:CustomerTier_STANDARD a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CustomerTierScheme ;
+    skos:notation "STANDARD" ;
+    skos:prefLabel "普通客户"@zh .
+
+b2b:CustomerTier_PROSPECT a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CustomerTierScheme ;
+    skos:notation "PROSPECT" ;
+    skos:prefLabel "潜在客户"@zh .
+
+b2b:CustomerTier_UNKNOWN a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CustomerTierScheme ;
+    skos:notation "UNKNOWN" ;
+    skos:prefLabel "未分级"@zh .
+
+b2b:SourcePresenceScheme a skos:ConceptScheme ;
+    rdfs:label "SourcePresence" ;
+    rdfs:comment "实体在多套源系统中的覆盖情况"@zh .
+
+b2b:SourcePresence_BOTH a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:SourcePresenceScheme ;
+    skos:notation "BOTH" ;
+    skos:prefLabel "CRM 与 ERP 均有记录"@zh .
+
+b2b:SourcePresence_CRM_ONLY a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:SourcePresenceScheme ;
+    skos:notation "CRM_ONLY" ;
+    skos:prefLabel "仅 CRM 有记录（未下单）"@zh .
+
+b2b:SourcePresence_ERP_ONLY a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:SourcePresenceScheme ;
+    skos:notation "ERP_ONLY" ;
+    skos:prefLabel "仅 ERP 有记录（CRM 未建档）"@zh .
+
+b2b:ResolutionMethodScheme a skos:ConceptScheme ;
+    rdfs:label "ResolutionMethod" ;
+    rdfs:comment "跨系统实体对齐所依据的规则"@zh .
+
+b2b:ResolutionMethod_CREDIT_CODE a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ResolutionMethodScheme ;
+    skos:notation "CREDIT_CODE" ;
+    skos:prefLabel "统一社会信用代码精确对齐"@zh .
+
+b2b:ResolutionMethod_EXACT_NAME a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ResolutionMethodScheme ;
+    skos:notation "EXACT_NAME" ;
+    skos:prefLabel "名称与主体类型/城市精确对齐"@zh .
+
+b2b:ResolutionMethod_MANUAL_CROSSWALK a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ResolutionMethodScheme ;
+    skos:notation "MANUAL_CROSSWALK" ;
+    skos:prefLabel "人工确认映射表对齐"@zh .
+
+b2b:ResolutionMethod_SINGLE_SOURCE a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ResolutionMethodScheme ;
+    skos:notation "SINGLE_SOURCE" ;
+    skos:prefLabel "单边系统实体，无需合并"@zh .
+
+b2b:ErpOrderStatusScheme a skos:ConceptScheme ;
+    rdfs:label "ErpOrderStatus" ;
+    rdfs:comment "ERP 系统上报的订单状态（非最终履约事实源）"@zh .
+
+b2b:ErpOrderStatus_PENDING_SHIPMENT a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ErpOrderStatusScheme ;
+    skos:notation "PENDING_SHIPMENT" ;
+    skos:prefLabel "待发货"@zh .
+
+b2b:ErpOrderStatus_PARTIALLY_SHIPPED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ErpOrderStatusScheme ;
+    skos:notation "PARTIALLY_SHIPPED" ;
+    skos:prefLabel "部分发货"@zh .
+
+b2b:ErpOrderStatus_SHIPPED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ErpOrderStatusScheme ;
+    skos:notation "SHIPPED" ;
+    skos:prefLabel "已发货"@zh .
+
+b2b:ErpOrderStatus_COMPLETED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ErpOrderStatusScheme ;
+    skos:notation "COMPLETED" ;
+    skos:prefLabel "已完成"@zh .
+
+b2b:ErpOrderStatus_CANCELLED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ErpOrderStatusScheme ;
+    skos:notation "CANCELLED" ;
+    skos:prefLabel "已取消"@zh .
+
+b2b:ShipmentStatusScheme a skos:ConceptScheme ;
+    rdfs:label "ShipmentStatus" ;
+    rdfs:comment "WMS 仓储发货单状态（履约事实源）"@zh .
+
+b2b:ShipmentStatus_AWAITING_DISPATCH a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ShipmentStatusScheme ;
+    skos:notation "AWAITING_DISPATCH" ;
+    skos:prefLabel "待出库"@zh .
+
+b2b:ShipmentStatus_IN_TRANSIT a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ShipmentStatusScheme ;
+    skos:notation "IN_TRANSIT" ;
+    skos:prefLabel "已出库"@zh .
+
+b2b:ShipmentStatus_DELIVERED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:ShipmentStatusScheme ;
+    skos:notation "DELIVERED" ;
+    skos:prefLabel "已签收"@zh .
+
+b2b:FulfillmentStatusScheme a skos:ConceptScheme ;
+    rdfs:label "FulfillmentStatus" ;
+    rdfs:comment "本体层综合 ERP 取消状态与 WMS 实际出库状态裁决出的真实履约状态"@zh .
+
+b2b:FulfillmentStatus_CANCELLED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:FulfillmentStatusScheme ;
+    skos:notation "CANCELLED" ;
+    skos:prefLabel "已取消"@zh .
+
+b2b:FulfillmentStatus_UNSHIPPED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:FulfillmentStatusScheme ;
+    skos:notation "UNSHIPPED" ;
+    skos:prefLabel "未建发货单"@zh .
+
+b2b:FulfillmentStatus_AWAITING_DISPATCH a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:FulfillmentStatusScheme ;
+    skos:notation "AWAITING_DISPATCH" ;
+    skos:prefLabel "备货待出库（未有效发货）"@zh .
+
+b2b:FulfillmentStatus_IN_TRANSIT a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:FulfillmentStatusScheme ;
+    skos:notation "IN_TRANSIT" ;
+    skos:prefLabel "已出库在途"@zh .
+
+b2b:FulfillmentStatus_DELIVERED a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:FulfillmentStatusScheme ;
+    skos:notation "DELIVERED" ;
+    skos:prefLabel "已签收"@zh .
+
+b2b:CategoryQualityStatusScheme a skos:ConceptScheme ;
+    rdfs:label "CategoryQualityStatus" ;
+    rdfs:comment "产品分类主数据合规状态"@zh .
+
+b2b:CategoryQualityStatus_VALID a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CategoryQualityStatusScheme ;
+    skos:notation "VALID" ;
+    skos:prefLabel "分类合规（挂在合法叶子节点且码名一致）"@zh .
+
+b2b:CategoryQualityStatus_MISSING a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CategoryQualityStatusScheme ;
+    skos:notation "MISSING" ;
+    skos:prefLabel "分类未维护"@zh .
+
+b2b:CategoryQualityStatus_CONFLICT a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CategoryQualityStatusScheme ;
+    skos:notation "CONFLICT" ;
+    skos:prefLabel "分类码与分类名称冲突"@zh .
+
+b2b:CategoryQualityStatus_UNKNOWN_CODE a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CategoryQualityStatusScheme ;
+    skos:notation "UNKNOWN_CODE" ;
+    skos:prefLabel "分类码不在标准码表中"@zh .
+
+b2b:CategoryQualityStatus_NON_LEAF a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:CategoryQualityStatusScheme ;
+    skos:notation "NON_LEAF" ;
+    skos:prefLabel "挂在非叶子节点分类上"@zh .
+
+b2b:SeverityScheme a skos:ConceptScheme ;
+    rdfs:label "Severity" ;
+    rdfs:comment "Severity"@zh .
+
+b2b:Severity_HIGH a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:SeverityScheme ;
+    skos:notation "HIGH" ;
+    skos:prefLabel "高（直接影响关键指标或业务决策）"@zh .
+
+b2b:Severity_MEDIUM a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:SeverityScheme ;
+    skos:notation "MEDIUM" ;
+    skos:prefLabel "中（需要治理但已有容错机制）"@zh .
+
+b2b:Severity_LOW a skos:Concept, owl:NamedIndividual ;
+    skos:inScheme b2b:SeverityScheme ;
+    skos:notation "LOW" ;
+    skos:prefLabel "低（主数据完善性提示）"@zh .
+
+# =============================================================================
+# 3. 语义对象属性（OWL ObjectProperties，含逆属性与传递闭包属性）
+# =============================================================================
+# 传递祖先分类属性：沿 parentCategory 自动推理任意层级的一级大类
+b2b:hasAncestorCategory a owl:ObjectProperty, owl:TransitiveProperty ;
+    rdfs:domain b2b:ProductCategory ;
+    rdfs:range b2b:ProductCategory ;
+    rdfs:label "具有上级祖先分类（传递属性）"@zh .
+
+b2b:ownedBy a owl:ObjectProperty ;
+    rdfs:domain b2b:Customer ;
+    rdfs:range b2b:SalesOwner ;
+    rdfs:comment "客户的归属销售负责人（ERP_ONLY 或 CRM 漏填时为空）"@zh .
+
+b2b:parentCategory a owl:ObjectProperty ;
+    rdfs:domain b2b:ProductCategory ;
+    rdfs:range b2b:ProductCategory ;
+    rdfs:comment "产品分类的父子层级关系，支持沿分类树向上推理一级大类"@zh ;
+    rdfs:subPropertyOf b2b:hasAncestorCategory .
+
+b2b:belongsToCategory a owl:ObjectProperty ;
+    rdfs:domain b2b:Product ;
+    rdfs:range b2b:ProductCategory ;
+    rdfs:comment "产品归属的标准分类节点（仅在分类码存在且无码名冲突时建立链接）"@zh .
+
+b2b:placedBy a owl:ObjectProperty ;
+    rdfs:domain b2b:SalesOrder ;
+    rdfs:range b2b:Customer ;
+    rdfs:comment "订单由哪位真实世界客户下达"@zh .
+
+b2b:partOfOrder a owl:ObjectProperty ;
+    rdfs:domain b2b:OrderLine ;
+    rdfs:range b2b:SalesOrder ;
+    rdfs:comment "明细行所属的销售订单"@zh ;
+    owl:inverseOf b2b:containsLines .
+
+b2b:containsLines a owl:ObjectProperty ;
+    rdfs:domain b2b:SalesOrder ;
+    rdfs:range b2b:OrderLine ;
+    owl:inverseOf b2b:partOfOrder .
+
+b2b:forProduct a owl:ObjectProperty ;
+    rdfs:domain b2b:OrderLine ;
+    rdfs:range b2b:Product ;
+    rdfs:comment "明细行采购的具体商品 SKU"@zh .
+
+b2b:fulfills a owl:ObjectProperty ;
+    rdfs:domain b2b:Shipment ;
+    rdfs:range b2b:SalesOrder ;
+    rdfs:comment "发货单履约的销售订单（允许为空以承载孤立发货单异常）"@zh ;
+    owl:inverseOf b2b:fulfilledBy .
+
+b2b:fulfilledBy a owl:ObjectProperty ;
+    rdfs:domain b2b:SalesOrder ;
+    rdfs:range b2b:Shipment ;
+    owl:inverseOf b2b:fulfills .
+
+b2b:auditsObject a owl:ObjectProperty ;
+    rdfs:domain b2b:DataQualityIssue ;
+    rdfs:label "审计目标对象"@zh .
+
+b2b:rootCategory a owl:ObjectProperty ;
+    rdfs:domain b2b:ProductCategory ;
+    rdfs:range b2b:ProductCategory ;
+    rdfs:label "所属一级大类（传递闭包上卷结果）"@zh .
+
+# =============================================================================
+# 4. 数据属性（OWL DatatypeProperties）
+# =============================================================================
+b2b:customerId a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "本体全局唯一标识"@zh .
+
+b2b:canonicalName a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "规范名称（优先取 ERP 工商全称，否则取 CRM 名称）"@zh .
+
+b2b:aliases a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "历史名或简称（保留 CRM 简称及更名前旧名）"@zh .
+
+b2b:partyType a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（PartyTypeScheme）"@zh .
+
+b2b:tier a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（CustomerTierScheme）"@zh .
+
+b2b:creditCode a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "统一社会信用代码（法人实体的强自然键）"@zh .
+
+b2b:city a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "city"@zh .
+
+b2b:crmAccountId a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "来源血缘：CRM 账号 ID"@zh .
+
+b2b:erpCustomerNo a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "来源血缘：ERP 客户编号"@zh .
+
+b2b:sourcePresence a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（SourcePresenceScheme）"@zh .
+
+b2b:resolutionMethod a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（ResolutionMethodScheme）"@zh .
+
+b2b:isVip a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "is_vip"@zh .
+
+b2b:ownerId a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "owner_id"@zh .
+
+b2b:ownerName a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "owner_name"@zh .
+
+b2b:team a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "team"@zh .
+
+b2b:categoryCode a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "category_code"@zh .
+
+b2b:categoryName a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "category_name"@zh .
+
+b2b:level a owl:DatatypeProperty ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "分类层级：1 为一级大类，2 为二级细类"@zh .
+
+b2b:isLeaf a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "是否为无下级分类的叶子节点"@zh .
+
+b2b:sku a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "sku"@zh .
+
+b2b:productName a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "product_name"@zh .
+
+b2b:unit a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "unit"@zh .
+
+b2b:listPrice a owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "list_price"@zh .
+
+b2b:rawCategoryCode a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "来源血缘：ERP 原始分类码"@zh .
+
+b2b:rawCategoryName a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "来源血缘：ERP 原始分类名"@zh .
+
+b2b:categoryStatus a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（CategoryQualityStatusScheme）"@zh .
+
+b2b:orderNo a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "order_no"@zh .
+
+b2b:orderDate a owl:DatatypeProperty ;
+    rdfs:range xsd:date ;
+    rdfs:comment "ISO-8601 标准下单日期"@zh .
+
+b2b:promisedDate a owl:DatatypeProperty ;
+    rdfs:range xsd:date ;
+    rdfs:comment "承诺交付日期（允许为空以便捕获质量异常）"@zh .
+
+b2b:erpStatus a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（ErpOrderStatusScheme）"@zh .
+
+b2b:totalAmount a owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "total_amount"@zh .
+
+b2b:isCancelled a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "is_cancelled"@zh .
+
+b2b:fulfillmentStatus a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（FulfillmentStatusScheme）"@zh .
+
+b2b:actualShipDate a owl:DatatypeProperty ;
+    rdfs:range xsd:date ;
+    rdfs:comment "actual_ship_date"@zh .
+
+b2b:isEffectivelyShipped a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "is_effectively_shipped"@zh .
+
+b2b:isOverdueUnshipped a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "is_overdue_unshipped"@zh .
+
+b2b:isOnTime a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "is_on_time"@zh .
+
+b2b:orderLineId a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "order_line_id"@zh .
+
+b2b:lineNo a owl:DatatypeProperty ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "line_no"@zh .
+
+b2b:quantity a owl:DatatypeProperty ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "quantity"@zh .
+
+b2b:unitPrice a owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "unit_price"@zh .
+
+b2b:lineAmount a owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "清洗格式后的明细金额"@zh .
+
+b2b:shipmentId a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "shipment_id"@zh .
+
+b2b:rawOrderNo a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "来源血缘：WMS 原始订单号"@zh .
+
+b2b:normalizedOrderNo a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "补全连字符后的标准订单号"@zh .
+
+b2b:shipDate a owl:DatatypeProperty ;
+    rdfs:range xsd:date ;
+    rdfs:comment "ship_date"@zh .
+
+b2b:shipmentStatus a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（ShipmentStatusScheme）"@zh .
+
+b2b:carrier a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "carrier"@zh .
+
+b2b:isEffective a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "is_effective"@zh .
+
+b2b:isDangling a owl:DatatypeProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "is_dangling"@zh .
+
+b2b:issueId a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "issue_id"@zh .
+
+b2b:ruleCode a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "rule_code"@zh .
+
+b2b:severity a owl:ObjectProperty ;
+    rdfs:range skos:Concept ;
+    rdfs:comment "受控词表属性（SeverityScheme）"@zh .
+
+b2b:targetObjectType a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "target_object_type"@zh .
+
+b2b:targetObjectId a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "target_object_id"@zh .
+
+b2b:sourceSystem a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "source_system"@zh .
+
+b2b:description a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "description"@zh .
+
+b2b:rawEvidence a owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "raw_evidence"@zh .

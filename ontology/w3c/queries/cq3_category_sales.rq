@@ -1,0 +1,27 @@
+# CQ3: 沿产品分类树传递闭包（SPARQL 1.1 Property Path: b2b:parentCategory*）上卷聚合一级大类销售额
+# W3C SPARQL 1.1 标准查询
+
+PREFIX b2b: <https://ontology.example.com/b2b-fulfillment#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?rootCode ?rootName (SUM(?lineAmt) AS ?totalSalesAmount) (COUNT(?line) AS ?lineCount)
+WHERE {
+    ?line a b2b:OrderLine ;
+          b2b:partOfOrder ?order ;
+          b2b:forProduct ?product ;
+          b2b:lineAmount ?lineAmt .
+
+    ?order b2b:isCancelled false .
+
+    OPTIONAL {
+        ?product b2b:belongsToCategory ?cat .
+        ?cat b2b:parentCategory* ?root .
+        FILTER NOT EXISTS { ?root b2b:parentCategory ?anyParent . }
+        ?root b2b:categoryCode ?rCode ;
+              b2b:categoryName ?rName .
+    }
+    BIND (COALESCE(?rCode, "UNCLASSIFIED") AS ?rootCode)
+    BIND (COALESCE(?rName, "未归类/异常待核") AS ?rootName)
+}
+GROUP BY ?rootCode ?rootName
+ORDER BY ASC(?rootCode)

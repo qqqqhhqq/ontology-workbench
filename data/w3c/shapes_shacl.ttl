@@ -1,0 +1,166 @@
+@prefix b2b:  <https://ontology.example.com/b2b-fulfillment#> .
+@prefix res:  <https://ontology.example.com/b2b-fulfillment/resource/> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# =============================================================================
+# W3C SHACL 1.0 约束规范（对应 ontology/schema.yaml 中的核心结构与 DQ-001~DQ-012 规则）
+# 可直接被 pyshacl、TopBraid SHACL、Apache Jena SHACL 或 GraphDB SHACL 引擎执行校验。
+# =============================================================================
+
+b2b:Prefixes a owl:Ontology ;
+    sh:declare [
+        sh:prefix "b2b" ;
+        sh:namespace "https://ontology.example.com/b2b-fulfillment#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix "xsd" ;
+        sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ;
+    ] .
+
+
+# ---- 1. Customer 实体约束（含 DQ-011 / DQ-012）----
+b2b:CustomerShape a sh:NodeShape ;
+    sh:targetClass b2b:Customer ;
+    sh:property [
+        sh:path b2b:customerId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:pattern "^CUST-[0-9]{4}$" ;
+    ] ;
+    sh:property [
+        sh:path b2b:canonicalName ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:path b2b:tier ;
+        sh:minCount 1 ;
+        sh:in ( b2b:CustomerTier_VIP b2b:CustomerTier_KEY_ACCOUNT b2b:CustomerTier_STANDARD b2b:CustomerTier_PROSPECT b2b:CustomerTier_UNKNOWN ) ;
+    ] ;
+    sh:property [
+        sh:path b2b:partyType ;
+        sh:minCount 1 ;
+        sh:in ( b2b:PartyType_ORGANIZATION b2b:PartyType_SOLE_PROPRIETOR b2b:PartyType_INDIVIDUAL ) ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:severity sh:Info ;
+        sh:message "DQ-012: 客户仅在单一源系统建档（CRM_ONLY 或 ERP_ONLY）"@zh ;
+        sh:prefixes b2b:Prefixes ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this b2b:sourcePresence ?presence .
+                FILTER (?presence IN (b2b:SourcePresence_CRM_ONLY, b2b:SourcePresence_ERP_ONLY))
+            }
+        """ ;
+    ] .
+
+# ---- 2. Product 分类合规约束（DQ-007 / DQ-008 / DQ-009 / DQ-010）----
+b2b:ProductShape a sh:NodeShape ;
+    sh:targetClass b2b:Product ;
+    sh:property [
+        sh:path b2b:sku ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:pattern "^P-[0-9]{4}$" ;
+    ] ;
+    sh:property [
+        sh:path b2b:belongsToCategory ;
+        sh:class b2b:ProductCategory ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "DQ-007/008/009: 产品缺少可信的标准分类链接（未维护、码名冲突或未知分类码）"@zh ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:severity sh:Warning ;
+        sh:message "DQ-010: 产品直接挂在非叶子节点分类上，缺少二级细类定义"@zh ;
+        sh:prefixes b2b:Prefixes ;
+        sh:select """
+            SELECT $this ?cat
+            WHERE {
+                $this b2b:belongsToCategory ?cat .
+                ?cat b2b:isLeaf false .
+            }
+        """ ;
+    ] .
+
+# ---- 3. SalesOrder 跨系统履约与完整性约束（DQ-001 / DQ-003）----
+b2b:SalesOrderShape a sh:NodeShape ;
+    sh:targetClass b2b:SalesOrder ;
+    sh:property [
+        sh:path b2b:orderNo ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:pattern "^SO-[0-9]{8}-[0-9]{3}$" ;
+    ] ;
+    sh:property [
+        sh:path b2b:placedBy ;
+        sh:class b2b:Customer ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path b2b:orderDate ;
+        sh:datatype xsd:date ;
+        sh:minCount 1 ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:severity sh:Violation ;
+        sh:message "DQ-003: 未取消订单缺少承诺交付日期（promisedDate）"@zh ;
+        sh:prefixes b2b:Prefixes ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this b2b:isCancelled false .
+                FILTER NOT EXISTS { $this b2b:promisedDate ?d }
+            }
+        """ ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:severity sh:Violation ;
+        sh:message "DQ-001: WMS 已实际出库或签收，但 ERP 订单状态仍滞留在待发货或部分发货"@zh ;
+        sh:prefixes b2b:Prefixes ;
+        sh:select """
+            SELECT $this ?erpStatus
+            WHERE {
+                $this b2b:isEffectivelyShipped true ;
+                      b2b:erpStatus ?erpStatus .
+                FILTER (?erpStatus IN (b2b:ErpOrderStatus_PENDING_SHIPMENT, b2b:ErpOrderStatus_PARTIALLY_SHIPPED))
+            }
+        """ ;
+    ] .
+
+# ---- 4. Shipment 关联完整性约束（DQ-002 / DQ-004）----
+b2b:ShipmentShape a sh:NodeShape ;
+    sh:targetClass b2b:Shipment ;
+    sh:property [
+        sh:path b2b:fulfills ;
+        sh:class b2b:SalesOrder ;
+        sh:minCount 1 ;
+        sh:severity sh:Violation ;
+        sh:message "DQ-002: WMS 发货单引用了 ERP 中不存在的订单（孤立发货单）"@zh ;
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:severity sh:Warning ;
+        sh:message "DQ-004: WMS 发货单原始订单号格式不规范（丢失连字符）"@zh ;
+        sh:prefixes b2b:Prefixes ;
+        sh:select """
+            SELECT $this ?raw ?norm
+            WHERE {
+                $this b2b:rawOrderNo ?raw ;
+                      b2b:normalizedOrderNo ?norm .
+                FILTER (?raw != ?norm)
+            }
+        """ ;
+    ] .

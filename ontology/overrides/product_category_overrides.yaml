@@ -1,0 +1,7 @@
+# 产品分类人工治理覆盖表（Product Category Governance Overrides）
+#
+# 不直接篡改源系统 ERP CSV，而是通过受版本管控的覆盖层修正异常商品分类。
+# 由操作型动作 FixProductCategory 审核写入；build_ontology.py 重建本体时自动生效。
+
+version: "1.0"
+overrides: []

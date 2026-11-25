@@ -1,0 +1,31 @@
+# CQ1: 近 30 天内 VIP 客户逾期未有效发货订单及归属销售
+# W3C SPARQL 1.1 标准查询（可直接运行于 Apache Jena Fuseki / GraphDB / Oxigraph / rdflib）
+
+PREFIX b2b:  <https://ontology.example.com/b2b-fulfillment#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?orderNo ?customerName ?ownerName ?team ?orderDate ?promisedDate ?fulfillmentLabel ?totalAmount
+WHERE {
+    ?order a b2b:SalesOrder ;
+           b2b:orderNo ?orderNo ;
+           b2b:placedBy ?customer ;
+           b2b:orderDate ?orderDate ;
+           b2b:promisedDate ?promisedDate ;
+           b2b:fulfillmentStatus ?fulfillStatus ;
+           b2b:totalAmount ?totalAmount ;
+           b2b:isOverdueUnshipped true .
+
+    ?customer b2b:isVip true ;
+              b2b:canonicalName ?customerName .
+
+    OPTIONAL {
+        ?customer b2b:ownedBy ?owner .
+        ?owner b2b:ownerName ?ownerName ;
+               b2b:team ?team .
+    }
+    OPTIONAL { ?fulfillStatus skos:notation ?fulfillmentLabel . }
+
+    FILTER (?orderDate >= "2026-10-25"^^xsd:date)
+}
+ORDER BY ASC(?promisedDate) ASC(?orderNo)

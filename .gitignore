@@ -1,0 +1,8 @@
+# 本地密钥与运行时文件（避免真实 API Key 误提交）
+.env
+config/llm.local.yaml
+data/ontology/action_ledger.jsonl
+.video_agent/
+__pycache__/
+*.pyc
+.DS_Store

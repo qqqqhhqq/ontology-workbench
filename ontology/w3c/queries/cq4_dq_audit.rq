@@ -1,0 +1,15 @@
+# CQ4: 跨系统数据一致性审计（按规则码与严重级别汇总 DataQualityIssue）
+# W3C SPARQL 1.1 标准查询
+
+PREFIX b2b:  <https://ontology.example.com/b2b-fulfillment#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+SELECT ?ruleCode ?severityCode (COUNT(?issue) AS ?issueCount)
+WHERE {
+    ?issue a b2b:DataQualityIssue ;
+           b2b:ruleCode ?ruleCode ;
+           b2b:severity ?sev .
+    OPTIONAL { ?sev skos:notation ?severityCode . }
+}
+GROUP BY ?ruleCode ?severityCode
+ORDER BY ASC(?ruleCode)

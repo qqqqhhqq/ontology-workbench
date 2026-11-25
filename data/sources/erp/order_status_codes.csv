@@ -1,0 +1,6 @@
+status_code,status_name
+A,待发货
+B,部分发货
+C,已发货
+D,已完成
+X,已取消

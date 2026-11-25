@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "b2b-fulfillment-ontology": {
+      "command": "python3",
+      "args": [
+        "-m",
+        "mcp_server.server",
+        "--mode",
+        "sandbox"
+      ],
+      "cwd": "/path/to/ontology"
+    }
+  }
+}

@@ -1,0 +1,440 @@
+# 企业订单履约本体规范（Ontology Schema v1.0）
+# 声明式定义：受控词表、对象类型、关系类型、语义推导规则、数据质量约束与业务动作。
+
+ontology:
+  id: "b2b-office-fulfillment"
+  name: "B2B 办公设备与耗材订单履约本体"
+  version: "1.0.0"
+  namespace: "https://ontology.example.com/b2b-fulfillment#"
+  as_of_date: "2026-11-23"
+
+# =============================================================================
+# 1. 受控词表 / 标准枚举（Controlled Vocabularies）
+#    解决各源系统命名混乱、大小写不一、码值不透明的问题
+# =============================================================================
+enums:
+  PartyType:
+    description: "参与方（客户）法律主体类型"
+    values:
+      ORGANIZATION:
+        label: "企业"
+        source_mappings:
+          crm: ["公司"]
+          erp: ["10"]
+      SOLE_PROPRIETOR:
+        label: "个体工商户"
+        source_mappings:
+          crm: ["个体户"]
+          erp: ["20"]
+      INDIVIDUAL:
+        label: "个人"
+        source_mappings:
+          crm: ["个人"]
+          erp: ["30"]
+
+  CustomerTier:
+    description: "客户价值分层（语义裁决：VIP 与大客户显式区分）"
+    values:
+      VIP:
+        label: "VIP 客户"
+        source_mappings:
+          crm: ["VIP", "vip"]
+      KEY_ACCOUNT:
+        label: "大客户"
+        source_mappings:
+          crm: ["大客户"]
+      STANDARD:
+        label: "普通客户"
+        source_mappings:
+          crm: ["普通", "一般客户", "普通客户"]
+      PROSPECT:
+        label: "潜在客户"
+        source_mappings:
+          crm: ["潜在客户"]
+      UNKNOWN:
+        label: "未分级"
+        source_mappings:
+          crm: [""]
+
+  SourcePresence:
+    description: "实体在多套源系统中的覆盖情况"
+    values:
+      BOTH: { label: "CRM 与 ERP 均有记录" }
+      CRM_ONLY: { label: "仅 CRM 有记录（未下单）" }
+      ERP_ONLY: { label: "仅 ERP 有记录（CRM 未建档）" }
+
+  ResolutionMethod:
+    description: "跨系统实体对齐所依据的规则"
+    values:
+      CREDIT_CODE: { label: "统一社会信用代码精确对齐" }
+      EXACT_NAME: { label: "名称与主体类型/城市精确对齐" }
+      MANUAL_CROSSWALK: { label: "人工确认映射表对齐" }
+      SINGLE_SOURCE: { label: "单边系统实体，无需合并" }
+
+  ErpOrderStatus:
+    description: "ERP 系统上报的订单状态（非最终履约事实源）"
+    values:
+      PENDING_SHIPMENT: { label: "待发货", erp_code: "A" }
+      PARTIALLY_SHIPPED: { label: "部分发货", erp_code: "B" }
+      SHIPPED: { label: "已发货", erp_code: "C" }
+      COMPLETED: { label: "已完成", erp_code: "D" }
+      CANCELLED: { label: "已取消", erp_code: "X" }
+
+  ShipmentStatus:
+    description: "WMS 仓储发货单状态（履约事实源）"
+    values:
+      AWAITING_DISPATCH:
+        label: "待出库"
+        is_effective_shipment: false
+        source_mappings:
+          wms: ["待出库"]
+      IN_TRANSIT:
+        label: "已出库"
+        is_effective_shipment: true
+        source_mappings:
+          wms: ["已出库"]
+      DELIVERED:
+        label: "已签收"
+        is_effective_shipment: true
+        source_mappings:
+          wms: ["已签收"]
+
+  FulfillmentStatus:
+    description: "本体层综合 ERP 取消状态与 WMS 实际出库状态裁决出的真实履约状态"
+    values:
+      CANCELLED: { label: "已取消" }
+      UNSHIPPED: { label: "未建发货单" }
+      AWAITING_DISPATCH: { label: "备货待出库（未有效发货）" }
+      IN_TRANSIT: { label: "已出库在途" }
+      DELIVERED: { label: "已签收" }
+
+  CategoryQualityStatus:
+    description: "产品分类主数据合规状态"
+    values:
+      VALID: { label: "分类合规（挂在合法叶子节点且码名一致）" }
+      MISSING: { label: "分类未维护" }
+      CONFLICT: { label: "分类码与分类名称冲突" }
+      UNKNOWN_CODE: { label: "分类码不在标准码表中" }
+      NON_LEAF: { label: "挂在非叶子节点分类上" }
+
+  Severity:
+    values:
+      HIGH: { label: "高（直接影响关键指标或业务决策）" }
+      MEDIUM: { label: "中（需要治理但已有容错机制）" }
+      LOW: { label: "低（主数据完善性提示）" }
+
+# =============================================================================
+# 2. 对象类型（Object Types）
+#    面向真实业务世界建模，而非照抄源系统物理表
+# =============================================================================
+object_types:
+  Customer:
+    label: "客户（业务参与方）"
+    description: "真实世界中与公司存在销售跟进或交易关系的企业、个体户或个人，统一收口 CRM Account 与 ERP Customer。"
+    primary_key: "customer_id"
+    id_pattern: "CUST-{seq:04d}"
+    properties:
+      customer_id: { type: string, required: true, description: "本体全局唯一标识" }
+      canonical_name: { type: string, required: true, description: "规范名称（优先取 ERP 工商全称，否则取 CRM 名称）" }
+      aliases: { type: "list[string]", required: false, description: "历史名或简称（保留 CRM 简称及更名前旧名）" }
+      party_type: { type: enum(PartyType), required: true }
+      tier: { type: enum(CustomerTier), required: true, description: "归一化后的客户等级，ERP_ONLY 客户默认 UNKNOWN" }
+      credit_code: { type: string, required: false, description: "统一社会信用代码（法人实体的强自然键）" }
+      city: { type: string, required: false }
+      crm_account_id: { type: string, required: false, description: "来源血缘：CRM 账号 ID" }
+      erp_customer_no: { type: string, required: false, description: "来源血缘：ERP 客户编号" }
+      source_presence: { type: enum(SourcePresence), required: true, derived: true }
+      resolution_method: { type: enum(ResolutionMethod), required: true }
+      is_vip:
+        type: boolean
+        derived: true
+        rule: "tier == CustomerTier.VIP"
+
+  SalesOwner:
+    label: "销售负责人"
+    description: "负责跟进和维护客户关系的内部销售人员。"
+    primary_key: "owner_id"
+    properties:
+      owner_id: { type: string, required: true }
+      owner_name: { type: string, required: true }
+      team: { type: string, required: true }
+
+  ProductCategory:
+    label: "产品分类"
+    description: "标准树形产品分类节点，支持沿上级关系做传递闭包聚合。"
+    primary_key: "category_code"
+    properties:
+      category_code: { type: string, required: true }
+      category_name: { type: string, required: true }
+      level: { type: integer, required: true, derived: true, description: "分类层级：1 为一级大类，2 为二级细类" }
+      is_leaf: { type: boolean, required: true, derived: true, description: "是否为无下级分类的叶子节点" }
+
+  Product:
+    label: "产品（SKU）"
+    description: "企业经销的办公设备或耗材商品。"
+    primary_key: "sku"
+    properties:
+      sku: { type: string, required: true }
+      product_name: { type: string, required: true }
+      unit: { type: string, required: true }
+      list_price: { type: decimal, required: true }
+      raw_category_code: { type: string, required: false, description: "来源血缘：ERP 原始分类码" }
+      raw_category_name: { type: string, required: false, description: "来源血缘：ERP 原始分类名" }
+      category_status: { type: enum(CategoryQualityStatus), required: true, derived: true }
+
+  SalesOrder:
+    label: "销售订单"
+    description: "客户下达的采购承诺，是串联 CRM 客户、ERP 交易与 WMS 履约的核心枢纽对象。"
+    primary_key: "order_no"
+    id_pattern: "SO-YYYYMMDD-NNN"
+    properties:
+      order_no: { type: string, required: true }
+      order_date: { type: date, required: true, description: "ISO-8601 标准下单日期" }
+      promised_date: { type: date, required: false, description: "承诺交付日期（允许为空以便捕获质量异常）" }
+      erp_status: { type: enum(ErpOrderStatus), required: true, description: "ERP 侧记录的订单状态" }
+      total_amount: { type: decimal, required: true, derived: true, rule: "sum(line.line_amount for line in contains_lines)" }
+      is_cancelled: { type: boolean, required: true, derived: true, rule: "erp_status == ErpOrderStatus.CANCELLED" }
+      fulfillment_status:
+        type: enum(FulfillmentStatus)
+        required: true
+        derived: true
+        rule: |
+          if is_cancelled -> CANCELLED
+          elif any shipment with status == DELIVERED -> DELIVERED
+          elif any shipment with status == IN_TRANSIT -> IN_TRANSIT
+          elif any shipment with status == AWAITING_DISPATCH -> AWAITING_DISPATCH
+          else -> UNSHIPPED
+      actual_ship_date:
+        type: date
+        required: false
+        derived: true
+        rule: "min(s.ship_date for s in fulfilled_by if s.is_effective)"
+      is_effectively_shipped:
+        type: boolean
+        required: true
+        derived: true
+        rule: "fulfillment_status in {IN_TRANSIT, DELIVERED}"
+      is_overdue_unshipped:
+        type: boolean
+        required: true
+        derived: true
+        rule: "not is_cancelled and promised_date is not null and promised_date < as_of_date and not is_effectively_shipped"
+      is_on_time:
+        type: boolean
+        required: false
+        derived: true
+        rule: "actual_ship_date <= promised_date if (is_effectively_shipped and promised_date is not null) else null"
+
+  OrderLine:
+    label: "订单明细行"
+    description: "销售订单中的单个商品采购条目。"
+    primary_key: "order_line_id"
+    id_pattern: "{order_no}#{line_no}"
+    properties:
+      order_line_id: { type: string, required: true }
+      line_no: { type: integer, required: true }
+      quantity: { type: integer, required: true }
+      unit_price: { type: decimal, required: true }
+      line_amount: { type: decimal, required: true, description: "清洗格式后的明细金额" }
+
+  Shipment:
+    label: "仓储发货单"
+    description: "WMS 产生的实际出库与物流凭证，是“是否有效发货”的唯一权威事实源。"
+    primary_key: "shipment_id"
+    properties:
+      shipment_id: { type: string, required: true }
+      raw_order_no: { type: string, required: true, description: "来源血缘：WMS 原始订单号" }
+      normalized_order_no: { type: string, required: true, description: "补全连字符后的标准订单号" }
+      ship_date: { type: date, required: true }
+      shipment_status: { type: enum(ShipmentStatus), required: true }
+      carrier: { type: string, required: true }
+      is_effective: { type: boolean, required: true, derived: true, rule: "shipment_status in {IN_TRANSIT, DELIVERED}" }
+      is_dangling: { type: boolean, required: true, derived: true, rule: "fulfills is null" }
+
+  DataQualityIssue:
+    label: "数据质量与一致性异常"
+    description: "将现实企业数据中的冲突、缺失与不合规作为本体一等公民显式记录，支持审计追踪与持续治理。"
+    primary_key: "issue_id"
+    properties:
+      issue_id: { type: string, required: true }
+      rule_code: { type: string, required: true }
+      severity: { type: enum(Severity), required: true }
+      target_object_type: { type: string, required: true }
+      target_object_id: { type: string, required: true }
+      source_system: { type: string, required: true }
+      description: { type: string, required: true }
+      raw_evidence: { type: string, required: false }
+
+# =============================================================================
+# 3. 语义关系（Link Types）
+# =============================================================================
+link_types:
+  owned_by:
+    from: Customer
+    to: SalesOwner
+    cardinality: "many-to-one"
+    optional: true
+    description: "客户的归属销售负责人（ERP_ONLY 或 CRM 漏填时为空）"
+
+  parent_category:
+    from: ProductCategory
+    to: ProductCategory
+    cardinality: "many-to-one"
+    optional: true
+    transitive_rollup: "root_category"
+    description: "产品分类的父子层级关系，支持沿分类树向上推理一级大类"
+
+  belongs_to_category:
+    from: Product
+    to: ProductCategory
+    cardinality: "many-to-one"
+    optional: true
+    description: "产品归属的标准分类节点（仅在分类码存在且无码名冲突时建立链接）"
+
+  placed_by:
+    from: SalesOrder
+    to: Customer
+    cardinality: "many-to-one"
+    optional: false
+    description: "订单由哪位真实世界客户下达"
+
+  part_of_order:
+    from: OrderLine
+    to: SalesOrder
+    cardinality: "many-to-one"
+    optional: false
+    inverse: "contains_lines"
+    description: "明细行所属的销售订单"
+
+  for_product:
+    from: OrderLine
+    to: Product
+    cardinality: "many-to-one"
+    optional: false
+    description: "明细行采购的具体商品 SKU"
+
+  fulfills:
+    from: Shipment
+    to: SalesOrder
+    cardinality: "many-to-one"
+    optional: true
+    inverse: "fulfilled_by"
+    description: "发货单履约的销售订单（允许为空以承载孤立发货单异常）"
+
+# =============================================================================
+# 4. 业务约束与数据质量规则（Constraints / Audit Rules）
+# =============================================================================
+constraints:
+  - code: "DQ-001"
+    name: "ERP_WMS_STATUS_LAG"
+    severity: HIGH
+    target: SalesOrder
+    condition: "is_effectively_shipped and erp_status in {PENDING_SHIPMENT, PARTIALLY_SHIPPED}"
+    description: "WMS 已实际出库或签收，但 ERP 订单状态仍滞留在待发货或部分发货"
+
+  - code: "DQ-002"
+    name: "DANGLING_SHIPMENT"
+    severity: HIGH
+    target: Shipment
+    condition: "is_dangling == true"
+    description: "WMS 发货单引用了 ERP 中不存在的订单号"
+
+  - code: "DQ-003"
+    name: "MISSING_PROMISED_DATE"
+    severity: HIGH
+    target: SalesOrder
+    condition: "not is_cancelled and promised_date is null"
+    description: "有效订单缺少承诺交付日期，导致无法判定履约是否逾期"
+
+  - code: "DQ-004"
+    name: "NON_STANDARD_ORDER_NO"
+    severity: MEDIUM
+    target: Shipment
+    condition: "raw_order_no != normalized_order_no"
+    description: "WMS 发货单中的订单号格式不规范（丢失连字符）"
+
+  - code: "DQ-005"
+    name: "NON_STANDARD_DATE_FORMAT"
+    severity: MEDIUM
+    target: SalesOrder
+    condition: "raw_order_date does not match ^\\d{8}$"
+    description: "ERP 订单日期格式偏离系统约定（如出现斜杠分隔）"
+
+  - code: "DQ-006"
+    name: "NON_STANDARD_AMOUNT_FORMAT"
+    severity: MEDIUM
+    target: OrderLine
+    condition: "raw_amount contains non-numeric punctuation such as ','"
+    description: "ERP 明细金额包含千分位逗号等非纯数值字符"
+
+  - code: "DQ-007"
+    name: "PRODUCT_CATEGORY_MISSING"
+    severity: HIGH
+    target: Product
+    condition: "category_status == MISSING"
+    description: "产品未维护分类码与分类名"
+
+  - code: "DQ-008"
+    name: "PRODUCT_CATEGORY_CONFLICT"
+    severity: HIGH
+    target: Product
+    condition: "category_status == CONFLICT"
+    description: "产品维护的分类码与分类名称相互矛盾，无法可靠归类"
+
+  - code: "DQ-009"
+    name: "PRODUCT_CATEGORY_UNKNOWN"
+    severity: HIGH
+    target: Product
+    condition: "category_status == UNKNOWN_CODE"
+    description: "产品引用的分类码不在标准分类码表中"
+
+  - code: "DQ-010"
+    name: "PRODUCT_CATEGORY_NON_LEAF"
+    severity: MEDIUM
+    target: Product
+    condition: "category_status == NON_LEAF"
+    description: "产品直接挂在一级非叶子分类节点上，缺少细类定义"
+
+  - code: "DQ-011"
+    name: "CUSTOMER_PROFILE_INCOMPLETE"
+    severity: LOW
+    target: Customer
+    condition: "crm_account_id is not null and (tier == UNKNOWN or owned_by is null or (party_type != INDIVIDUAL and credit_code is empty))"
+    description: "CRM 客户档案缺少等级、负责人或企业统一社会信用代码"
+
+  - code: "DQ-012"
+    name: "CUSTOMER_SINGLE_SYSTEM_ONLY"
+    severity: LOW
+    target: Customer
+    condition: "source_presence in {CRM_ONLY, ERP_ONLY}"
+    description: "客户仅在单一业务系统建档（仅 CRM 跟进或仅 ERP 下单）"
+
+# =============================================================================
+# 5. 操作型业务动作（Operational Actions — 预留给阶段五闭环与 AI Agent 调用）
+# =============================================================================
+actions:
+  EscalateOverdueOrder:
+    target_object: SalesOrder
+    description: "针对逾期未发货的高优订单，向对应销售负责人发送预警并向仓储发起加急出库催办"
+    precondition: "SalesOrder.is_overdue_unshipped == true"
+    parameters:
+      reason: { type: string, required: true }
+      priority: { type: string, enum: ["P1", "P2"], default: "P1" }
+    side_effects:
+      - "通知 SalesOrder.placed_by.owned_by"
+      - "创建 WMS 催办工单并记录审计日志"
+
+  ReconcileCustomerIdentity:
+    target_object: Customer
+    description: "人工审核并固化跨系统客户映射关系（如无信用代码且简称差异大的客户）"
+    parameters:
+      crm_account_id: { type: string, required: true }
+      erp_customer_no: { type: string, required: true }
+      reviewer: { type: string, required: true }
+
+  FixProductCategory:
+    target_object: Product
+    description: "将存在分类异常的商品重新绑定到合法的叶子分类节点"
+    precondition: "Product.category_status != VALID"
+    parameters:
+      target_leaf_category_code: { type: string, required: true }

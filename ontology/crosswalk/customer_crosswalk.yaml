@@ -1,0 +1,16 @@
+# 跨系统客户身份人工确认映射表（L3 Manual Crosswalk）
+#
+# 实体解析分级原则：
+#   L1: 统一社会信用代码精确匹配（全自动）
+#   L2: 名称 + 主体类型 + 城市精确匹配（全自动）
+#   L3: 本文件显式登记并经业务复核的映射（拒绝黑盒模糊字符串猜合并）
+#
+# 阶段五的 ReconcileCustomerIdentity 动作也会将人工确认结果追加到此文件。
+
+version: "1.0"
+mappings:
+  - crm_account_id: "ACC-1006"
+    erp_customer_no: "C0006"
+    reviewer: "data-steward-east"
+    reviewed_at: "2026-11-23"
+    rationale: "CRM 账号“星辰设计”（苏州）漏填统一社会信用代码，经与华东二组周敏及财务开票档案核对，确认为 ERP 客户“星辰创意设计有限公司”（91320500MA1W60066F）。"

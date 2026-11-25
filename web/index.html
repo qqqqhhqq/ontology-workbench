@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operational Ontology Console — B2B 订单履约本体控制台</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">O</div>
+      <div>
+        <h1>Operational Ontology Workbench</h1>
+        <div class="sub" id="metaSubtitle">B2B 办公设备与耗材订单履约本体 · 加载中...</div>
+      </div>
+    </div>
+
+    <nav class="nav-tabs" id="navTabs">
+      <button class="nav-tab active" data-tab="agent">AI Agent 闭环</button>
+      <button class="nav-tab" data-tab="arena">Ontology vs SQL</button>
+      <button class="nav-tab" data-tab="cockpit">业务驾驶舱</button>
+      <button class="nav-tab" data-tab="graph">交互式图谱</button>
+      <button class="nav-tab" data-tab="actions">动作演练台</button>
+      <button class="nav-tab" data-tab="standards">质量 & W3C / MCP</button>
+    </nav>
+
+    <div class="topbar-meta">
+      <span class="pill sandbox" id="modePill">SANDBOX 沙箱</span>
+      <button class="btn warn" id="resetSandboxBtn" title="恢复沙箱到初始快照状态">重置沙箱</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ========================================================= -->
+    <!-- Tab 0: AI Agent 闭环中心 (ReAct + MCP + HITL Approval)      -->
+    <!-- ========================================================= -->
+    <section class="tab-panel active" id="tab-agent">
+      <div class="panel">
+        <div class="agent-config-bar">
+          <div>
+            <h2 style="font-size:15px;">AI Agent Loop · 真实大模型 + Operational Ontology MCP 闭环工作台</h2>
+            <div class="hint">真实 LLM 原生 Function Calling → MCP tools/call → 本体前置守卫 → HITL 人工审批 → 写回与重建本体</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <select id="agentEngineMode">
+              <option value="real_llm" selected>真实大模型 Agent Loop（OpenAI / DeepSeek / Qwen / Claude / Gemini / Ollama）</option>
+              <option value="deterministic">离线规则演示模式（仅无 Key 时体验流程）</option>
+            </select>
+            <label class="checkbox-row" style="cursor:pointer;">
+              <input type="checkbox" id="agentRequireApproval" checked />
+              高危写动作需人工审批（HITL 闸门）
+            </label>
+          </div>
+        </div>
+
+        <div class="llm-config-card" id="llmConfigCard">
+          <div class="llm-config-head">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <strong style="font-size:13px; color:var(--accent);">真实模型与 API 接入配置</strong>
+              <span class="badge b-med" id="llmReadyBadge">⚠️ API Key 预留待填</span>
+              <span class="mono" style="font-size:11px; color:var(--text-muted);" id="llmSourceHint">配置落盘：config/llm.local.yaml（已 gitignore）</span>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn sm" id="pingLlmBtn">🔌 测试模型连通性</button>
+              <button class="btn sm primary" id="saveLlmBtn">💾 保存到本地配置</button>
+            </div>
+          </div>
+
+          <div class="provider-pills" id="providerPresetsBar"></div>
+
+          <div class="llm-config-grid">
+            <div class="field">
+              <label>协议 Provider</label>
+              <select id="llmProvider">
+                <option value="openai_compatible">openai_compatible</option>
+                <option value="anthropic">anthropic</option>
+                <option value="gemini">gemini</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>API Base URL</label>
+              <input type="text" id="llmBaseUrl" value="https://api.openai.com/v1" placeholder="如 https://api.deepseek.com/v1" />
+            </div>
+            <div class="field">
+              <label>Model 名称</label>
+              <input type="text" id="llmModel" value="gpt-4o-mini" placeholder="如 deepseek-chat / qwen-plus" />
+            </div>
+            <div class="field">
+              <label>API Key（预留，保存后仅掩码展示）</label>
+              <div style="display:flex; gap:4px;">
+                <input type="password" id="llmApiKey" placeholder="留空则沿用已保存 Key / 环境变量" style="flex:1; min-width:0;" />
+                <button class="btn sm" id="toggleKeyVisBtn" type="button" title="显示/隐藏 Key">👁</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Max Turns</label>
+              <input type="text" id="llmMaxTurns" value="8" />
+            </div>
+            <div class="field">
+              <label>Temp</label>
+              <input type="text" id="llmTemperature" value="0.1" />
+            </div>
+          </div>
+
+          <div class="llm-config-actions">
+            <div class="ping-status" id="llmPingStatus">提示：API 与 Key 已预留在 config/llm.local.yaml 和 .env.example，填入后点击「测试模型连通性」即可开始真实模型评测。</div>
+            <button class="btn sm danger" id="clearKeyBtn" type="button" style="display:none;">清除已存 Key</button>
+          </div>
+        </div>
+
+        <div class="agent-presets-grid" id="agentPresetsGrid"></div>
+
+        <div class="agent-input-row">
+          <input type="text" id="agentTaskInput" placeholder="输入自然语言业务任务，例如：巡检近30天VIP逾期订单并催办 / 查一下博思咨询情况 / 修复 P-1012 到 0101 并重建本体" />
+          <button class="btn primary" id="runAgentBtn" style="padding:0 18px; font-size:13px;">启动 Agent Loop</button>
+        </div>
+      </div>
+
+      <div class="agent-workspace">
+        <div class="panel" style="margin-bottom:0;">
+          <div class="panel-header">
+            <div>
+              <h2 id="activeSessionTitle">执行轨迹（ReAct + MCP Trace）</h2>
+              <div class="hint" id="activeSessionSub">点击上方任意一键场景卡片，或输入自然语言任务启动完整的 Agent Loop</div>
+            </div>
+            <span class="badge b-std" id="activeSessionStatus">IDLE</span>
+          </div>
+          <div id="agentTraceContainer" class="trace-list">
+            <div style="padding:26px 12px; text-align:center; color:var(--text-muted); font-size:13px;">
+              尚无运行中的 Agent Session。推荐先体验：<strong>① 误操作拦截与自愈（SO-20261105-905）</strong> 或 <strong>② 修复 P-1012 数据治理闭环（含 HITL 审批与实时指标刷新）</strong>。
+            </div>
+          </div>
+          <div id="agentApprovalContainer"></div>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h2 style="font-size:14px; margin-bottom:10px;">本次 Loop 遥测指标</h2>
+            <div class="mini-metrics" id="agentMiniMetrics">
+              <div class="mini-metric"><div class="mm-val">0</div><div class="mm-lbl">ReAct 轮次</div></div>
+              <div class="mini-metric"><div class="mm-val">0</div><div class="mm-lbl">MCP tools/call</div></div>
+              <div class="mini-metric"><div class="mm-val">0</div><div class="mm-lbl">前置守卫拦截</div></div>
+              <div class="mini-metric"><div class="mm-val">0</div><div class="mm-lbl">已提交受控动作</div></div>
+              <div class="mini-metric"><div class="mm-val">0</div><div class="mm-lbl">LLM Tokens</div></div>
+              <div class="mini-metric"><div class="mm-val">0ms</div><div class="mm-lbl">LLM 推理耗时</div></div>
+            </div>
+
+            <h2 style="font-size:14px; margin-bottom:8px;">实时本体状态联动（闭环前后可见）</h2>
+            <div id="agentLiveOntologyBox" style="font-size:12px; color:var(--text-secondary); background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:14px;">
+              加载中...
+            </div>
+
+            <h2 style="font-size:14px; margin-bottom:8px;">Session 历史记录</h2>
+            <div id="agentSessionHistory" style="max-height:260px; overflow-y:auto;">
+              <div style="font-size:12px; color:var(--text-muted);">暂无历史 Session</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- Tab 0.5: Ontology vs Text-to-SQL 同模型实战对比（Arena）    -->
+    <!-- ========================================================= -->
+    <section class="tab-panel" id="tab-arena">
+      <div class="kpi-grid" id="arenaSummaryKpis"></div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>⚖️ Ontology vs Text-to-SQL 同模型实战对比（Arena）</h2>
+            <div class="hint">左侧让真实模型直连 10 张未治理源表（CRM/ERP/WMS）自己写 SQL；右侧让同一真实模型经由 MCP 语义工具与本体守卫作答</div>
+          </div>
+          <span class="badge b-key" id="arenaModelBadge">同模型公平对决</span>
+        </div>
+
+        <div class="arena-cards-grid" id="arenaBenchCards"></div>
+
+        <div class="agent-input-row">
+          <input type="text" id="arenaQuestionInput" placeholder="输入任意企业业务问题，立即启动 Text-to-SQL vs Operational Ontology 现场同题 PK..." />
+          <button class="btn primary" id="runArenaBtn" style="padding:0 18px; font-size:13px;">⚡ 启动同题 PK</button>
+        </div>
+      </div>
+
+      <div id="arenaGroundTruthBanner" class="panel" style="display:none; padding:12px 16px; border-color:rgba(56,189,248,0.45);"></div>
+
+      <div class="arena-split" id="arenaSplitView">
+        <div class="arena-col t2s">
+          <div class="arena-col-head">
+            <h3 style="font-size:15px; color:#fde68a;">Text-to-SQL（10 张原始源表裸查）</h3>
+            <span class="badge b-std" id="t2sScoreBadge">待运行</span>
+          </div>
+          <div class="arena-metrics-bar" id="t2sMetricsBar"></div>
+          <div class="check-list" id="t2sCheckList" style="display:none;"></div>
+          <div class="arena-answer-box" id="t2sAnswerBox">点击上方实测题目查看真实 Qwen3.8 生成的 SQL 与踩坑记录，或点击「⚡ 现场重跑 PK」实时对决。</div>
+          <div id="t2sStepsList" class="trace-list"></div>
+        </div>
+
+        <div class="arena-col onto">
+          <div class="arena-col-head">
+            <h3 style="font-size:15px; color:#86efac;">Operational Ontology（9 个 MCP 语义工具）</h3>
+            <span class="badge b-std" id="ontoScoreBadge">待运行</span>
+          </div>
+          <div class="arena-metrics-bar" id="ontoMetricsBar"></div>
+          <div class="check-list" id="ontoCheckList" style="display:none;"></div>
+          <div class="arena-answer-box" id="ontoAnswerBox">点击上方实测题目查看 Operational Ontology 侧的 MCP 调用链与回答。</div>
+          <div id="ontoStepsList" class="trace-list"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:18px;">
+        <div class="panel-header">
+          <div>
+            <h2>架构范式本质差异总结：Text-to-SQL vs Operational Ontology</h2>
+            <div class="hint">什么时候用 Text-to-SQL，什么时候必须上 Operational Ontology？</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>对比维度</th>
+                <th>Text-to-SQL（直连物理表）</th>
+                <th>Operational Ontology（语义本体 + 动作层）</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>底层视角</strong></td>
+                <td>面向存储与物理表（10 张分散的 <code>crm_*</code>/<code>erp_*</code>/<code>wms_*</code> 裸表）</td>
+                <td>面向真实业务世界（8 个统一对象 + 7 类显式语义边）</td>
+              </tr>
+              <tr>
+                <td><strong>实体对齐与业务口径</strong></td>
+                <td>每次提问都靠 LLM 临场猜 JOIN 条件和口径（易漏 <code>ACC-1006</code>、混淆 <code>VIP</code>/<code>大客户</code>、错把 <code>待出库</code> 当已发货）</td>
+                <td>三级实体解析 + 受控词表 + WMS 权威裁决一次性沉淀在 <code>schema.yaml</code>，全企业与 AI 共享唯一真相</td>
+              </tr>
+              <tr>
+                <td><strong>真实脏数据容错</strong></td>
+                <td>极易静默算错（例如 SQLite <code>SUM(CAST('12,800.00' AS REAL))</code> 静默截断为 <code>12.0</code>，直接少算 ¥12,788 而不报错！）</td>
+                <td>清洗与校验解耦：脏数据标准化入库同时显式挂 <code>DataQualityIssue</code>（<code>DQ-001~012</code>），金额 100% 守恒</td>
+              </tr>
+              <tr>
+                <td><strong>Token 成本与延迟</strong></td>
+                <td>每题需多轮试探码表/样本（实测 CQ1–CQ3 平均每题 <strong>7.7 轮、11.3 条 SQL、20,950 Tokens</strong>），极易触发网关限流 429</td>
+                <td>语义工具一步直达（实测 CQ1–CQ3 平均每题 <strong>2 轮、1 次 MCP 调用、4,489 Tokens</strong>），<strong>节省约 79% Token、快 2.4 倍</strong></td>
+              </tr>
+              <tr>
+                <td><strong>业务闭环与安全性</strong></td>
+                <td>本质是<strong>只读查询</strong>；一旦放开 SQL 写权限极具灾难风险，无法做业务规则拦截</td>
+                <td>原生<strong>操作型闭环</strong>：<code>EscalateOverdueOrder</code> / <code>FixProductCategory</code> 带前置守卫、<code>dry_run</code>、HITL 审批与不可变审计账本</td>
+              </tr>
+              <tr>
+                <td><strong>适用场景边界</strong></td>
+                <td>适合单一干净数仓/宽表的临时探索性 BI 分析（Ad-hoc 自由切片）</td>
+                <td>适合跨异构系统运营决策、高合规指标口径统一、以及需要<strong>可靠且可控地执行业务动作的 AI Agent</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <details class="trace-details" style="margin-top:12px;">
+          <summary>展开查看 Text-to-SQL 侧拿到的 10 张原始源表 DDL</summary>
+          <pre id="arenaRawDdlBox">加载中...</pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- Tab 1: 业务驾驶舱 CQ1-CQ4                                   -->
+    <!-- ========================================================= -->
+    <section class="tab-panel" id="tab-cockpit">
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>CQ1 · 近 30 天 VIP 客户逾期未有效发货预警</h2>
+            <div class="hint">以 WMS 为唯一履约事实源（排除“待出库”、已取消单及单号缺连字符导致的误报）</div>
+          </div>
+          <span class="badge b-high" id="cq1CountBadge">0 张</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>订单号</th>
+                <th>规范客户（别名）</th>
+                <th>实体解析</th>
+                <th>负责销售 / 团队</th>
+                <th>下单 / 承诺日</th>
+                <th>WMS 裁决</th>
+                <th class="num">涉险金额</th>
+                <th>受控动作</th>
+              </tr>
+            </thead>
+            <tbody id="cq1TableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>CQ3 · 产品一级大类有效销售额聚合</h2>
+              <div class="hint" id="cq3ReconcileHint">金额守恒校验中...</div>
+            </div>
+            <span class="badge b-ok" id="cq3BalanceBadge">守恒校验</span>
+          </div>
+          <div id="cq3Bars"></div>
+          <h3 style="font-size:13px; margin:14px 0 8px; color:var(--text-secondary);">分类异常商品（点击一键跳转修复）</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU / 商品</th>
+                  <th>异常类型</th>
+                  <th class="num">影响金额</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="cq3AnomBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>CQ2 · 跨系统客户 360° 全景检索</h2>
+              <div class="hint">支持按规范名、简称、更名前旧名（如“博思咨询”“星辰设计”）实时检索</div>
+            </div>
+            <input type="text" id="customerSearchInput" placeholder="输入“博思咨询”或“云帆”..." style="width:210px;" />
+          </div>
+          <div class="table-wrap" style="max-height:380px; overflow-y:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>客户</th>
+                  <th>等级 / 覆盖</th>
+                  <th>销售</th>
+                  <th class="num">有效金额</th>
+                  <th class="num">准时率</th>
+                </tr>
+              </thead>
+              <tbody id="cq2TableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- Tab 2: 交互式知识图谱                                       -->
+    <!-- ========================================================= -->
+    <section class="tab-panel" id="tab-graph">
+      <div class="panel" style="margin-bottom:14px; padding:12px 16px;">
+        <div class="graph-toolbar" style="margin-bottom:0;">
+          <div class="preset-group" id="graphPresetGroup">
+            <button class="btn preset-btn active" data-preset="core">核心业务全览</button>
+            <button class="btn preset-btn" data-preset="vip_overdue">VIP 逾期履约链路</button>
+            <button class="btn preset-btn" data-preset="customer_er">客户实体对齐图</button>
+            <button class="btn preset-btn" data-preset="product_tree">产品分类树与异常</button>
+            <button class="btn preset-btn" data-preset="dq_conflicts">数据质量冲突聚焦</button>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="graphSearchInput" placeholder="定位节点 (如 905 / 博思 / P-1013)" style="width:220px;" />
+            <span class="pill" id="graphStatsPill">0 节点 · 0 边</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="graph-layout">
+        <div class="canvas-wrap">
+          <canvas id="graphCanvas"></canvas>
+          <div class="graph-controls">
+            <button class="btn sm" id="zoomInBtn">＋</button>
+            <button class="btn sm" id="zoomOutBtn">－</button>
+            <button class="btn sm" id="fitGraphBtn">适配视图</button>
+          </div>
+          <div class="graph-legend">
+            <span class="legend-item"><i class="dot" style="background:#a78bfa"></i>Customer</span>
+            <span class="legend-item"><i class="dot" style="background:#38bdf8"></i>SalesOwner</span>
+            <span class="legend-item"><i class="dot" style="background:#22c55e"></i>SalesOrder</span>
+            <span class="legend-item"><i class="dot" style="background:#f59e0b"></i>Shipment</span>
+            <span class="legend-item"><i class="dot" style="background:#f472b6"></i>Product</span>
+            <span class="legend-item"><i class="dot" style="background:#14b8a6"></i>Category</span>
+            <span class="legend-item"><i class="dot" style="border:2px solid #ef4444; background:transparent"></i>含质量异常</span>
+          </div>
+        </div>
+
+        <aside class="inspector" id="nodeInspector">
+          <h3>对象检视器（Object Inspector）</h3>
+          <p class="hint" style="font-size:12px; color:var(--text-muted);">
+            点击画布中任意节点，查看其标准化属性、源系统血缘、出边/入边语义关系及挂载的 DataQualityIssue。支持拖拽节点、滚轮缩放与画布平移。
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- Tab 3: 受控动作演练台                                       -->
+    <!-- ========================================================= -->
+    <section class="tab-panel" id="tab-actions">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>一键载入经典测试案例（验证前置守卫拦截 vs 合法闭环写回）</h2>
+            <div class="hint">红色为“故意触发守卫拦截”的真实陷阱案例；绿色为合法闭环案例（在沙箱中安全生效，可随时重置）</div>
+          </div>
+        </div>
+        <div class="action-presets">
+          <button class="btn danger" id="presetBadEscalate">拦截测试：误催办已出库单 SO-20261105-905</button>
+          <button class="btn danger" id="presetBadCat">拦截测试：将 P-1012 挂到非叶子节点 01</button>
+          <button class="btn danger" id="presetBadMerge">拦截测试：强并不同法人 ACC-1011 ↔ C0011</button>
+          <button class="btn success" id="presetGoodEscalate">合法案例：催办 VIP 逾期单 SO-20261112-904</button>
+          <button class="btn success" id="presetGoodCat">合法闭环：修复 P-1012 → 0101(打印机) 并重建本体</button>
+          <button class="btn success" id="presetGoodMerge">合法闭环：沙箱对齐 ACC-1012 ↔ C0012 并重建本体</button>
+        </div>
+
+        <div class="action-grid">
+          <!-- Action 1 -->
+          <div class="action-card">
+            <h3>1. EscalateOverdueOrder</h3>
+            <div class="desc">针对逾期未有效发货订单发起销售预警与 WMS 催办。强守卫：is_overdue_unshipped == true & 幂等防重。</div>
+            <div class="field">
+              <label>order_no</label>
+              <input type="text" id="act1OrderNo" value="SO-20261112-904" />
+            </div>
+            <div class="field">
+              <label>priority</label>
+              <select id="act1Priority">
+                <option value="P1">P1 (高优加急)</option>
+                <option value="P2">P2 (常规催办)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>reason</label>
+              <input type="text" id="act1Reason" value="VIP 客户逾期未发货，申请优先安排出库" />
+            </div>
+            <div class="action-btns">
+              <button class="btn" onclick="submitAction('escalate_overdue_order', true)">Dry Run 预演</button>
+              <button class="btn primary" onclick="submitAction('escalate_overdue_order', false)">提交执行</button>
+            </div>
+          </div>
+
+          <!-- Action 2 -->
+          <div class="action-card">
+            <h3>2. FixProductCategory</h3>
+            <div class="desc">将异常分类商品重新绑定到合法叶子节点（写治理覆盖表）。强守卫：原状态 != VALID & 目标必须是叶子分类。</div>
+            <div class="field">
+              <label>sku</label>
+              <input type="text" id="act2Sku" value="P-1012" />
+            </div>
+            <div class="field">
+              <label>target_leaf_category_code</label>
+              <input type="text" id="act2Cat" value="0101" placeholder="如 0101(打印机) / 0102(复印机)" />
+            </div>
+            <div class="field">
+              <label>reviewer / reason</label>
+              <input type="text" id="act2Reason" value="经商品经理核实，标签打印机归属 0101 打印机" />
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="act2Rebuild" checked />
+              提交后立即重建 Ontology 与 W3C 导出（实时生效）
+            </label>
+            <div class="action-btns">
+              <button class="btn" onclick="submitAction('fix_product_category', true)">Dry Run 预演</button>
+              <button class="btn primary" onclick="submitAction('fix_product_category', false)">提交修复</button>
+            </div>
+          </div>
+
+          <!-- Action 3 -->
+          <div class="action-card">
+            <h3>3. ReconcileCustomerIdentity</h3>
+            <div class="desc">人工审核固化跨系统客户映射（写 L3 Crosswalk）。强守卫：拦截已绑定冲突、不同信用代码法人与主体类型冲突。</div>
+            <div class="field">
+              <label>crm_account_id</label>
+              <input type="text" id="act3Crm" value="ACC-1011" />
+            </div>
+            <div class="field">
+              <label>erp_customer_no</label>
+              <input type="text" id="act3Erp" value="C0011" />
+            </div>
+            <div class="field">
+              <label>rationale</label>
+              <input type="text" id="act3Rationale" value="跨系统身份人工核对测试" />
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="act3Rebuild" checked />
+              提交后立即重建 Ontology（实时更新客户数与 DQ-012）
+            </label>
+            <div class="action-btns">
+              <button class="btn" onclick="submitAction('reconcile_customer_identity', true)">Dry Run 预演</button>
+              <button class="btn primary" onclick="submitAction('reconcile_customer_identity', false)">提交对齐</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <h3 style="font-size:13px; margin-bottom:8px; color:var(--text-secondary);">最近一次动作执行 / 守卫拦截反馈</h3>
+            <div class="result-box" id="actionResultBox">等待执行动作...</div>
+          </div>
+          <div>
+            <h3 style="font-size:13px; margin-bottom:8px; color:var(--text-secondary);">追加式不可变审计账本（action_ledger.jsonl）</h3>
+            <div class="table-wrap" style="max-height:280px; overflow-y:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>动作</th>
+                    <th>目标对象</th>
+                    <th>执行人</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody id="ledgerTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- Tab 4: 数据质量审计 & W3C / MCP 标准                       -->
+    <!-- ========================================================= -->
+    <section class="tab-panel" id="tab-standards">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>CQ4 · 跨系统数据质量与一致性异常明细（DQ-001 ~ DQ-012）</h2>
+            <div class="hint">现实数据不完美作为一等公民显式追踪，点击对象 ID 可直达图谱检视</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <select id="dqSeverityFilter">
+              <option value="">全部级别</option>
+              <option value="HIGH">HIGH（高危）</option>
+              <option value="MEDIUM">MEDIUM（中）</option>
+              <option value="LOW">LOW（低）</option>
+            </select>
+            <input type="text" id="dqRuleFilter" placeholder="规则码 如 DQ-001" style="width:140px;" />
+          </div>
+        </div>
+        <div class="table-wrap" style="max-height:320px; overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>规则</th>
+                <th>级别</th>
+                <th>目标对象</th>
+                <th>来源系统</th>
+                <th>问题描述</th>
+              </tr>
+            </thead>
+            <tbody id="dqTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>W3C 语义网标准产物（OWL 2 / SHACL 1.0 / SPARQL 1.1）与 MCP 挂载配置</h2>
+            <div class="hint" id="w3cAssetTitle">可直接导入 Apache Jena Fuseki / GraphDB / Oxigraph 或挂载至 MCP 客户端</div>
+          </div>
+          <button class="btn sm" id="copyCodeBtn">复制当前代码</button>
+        </div>
+        <div class="code-tabs" id="w3cTabs">
+          <button class="btn sm preset-btn active" data-asset="tbox">OWL 2 / RDFS TBox (.ttl)</button>
+          <button class="btn sm preset-btn" data-asset="shacl">SHACL 1.0 Shapes (.ttl)</button>
+          <button class="btn sm preset-btn" data-asset="abox_sample">RDF 1.1 ABox 节选 (.ttl)</button>
+          <button class="btn sm preset-btn" data-asset="cq1">SPARQL CQ1</button>
+          <button class="btn sm preset-btn" data-asset="cq2">SPARQL CQ2</button>
+          <button class="btn sm preset-btn" data-asset="cq3">SPARQL CQ3 (Property Path)</button>
+          <button class="btn sm preset-btn" data-asset="cq4">SPARQL CQ4</button>
+          <button class="btn sm preset-btn" data-asset="mcp_config">MCP Client 挂载配置</button>
+        </div>
+        <pre class="code-viewer" id="w3cCodeViewer">加载中...</pre>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

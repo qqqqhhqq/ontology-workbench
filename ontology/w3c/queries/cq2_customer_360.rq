@@ -1,0 +1,32 @@
+# CQ2: 跨系统客户 360° 全景视图（按规范客户实体聚合有效订单数与有效销售额）
+# W3C SPARQL 1.1 标准查询
+
+PREFIX b2b:  <https://ontology.example.com/b2b-fulfillment#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?customerId ?canonicalName ?tierCode ?presenceCode ?ownerName
+       (COUNT(DISTINCT ?validOrder) AS ?validOrderCount)
+       (COALESCE(SUM(?orderAmt), "0.00"^^xsd:decimal) AS ?validOrderAmount)
+WHERE {
+    ?customer a b2b:Customer ;
+              b2b:customerId ?customerId ;
+              b2b:canonicalName ?canonicalName ;
+              b2b:tier ?tier ;
+              b2b:sourcePresence ?presence .
+
+    OPTIONAL { ?tier skos:notation ?tierCode . }
+    OPTIONAL { ?presence skos:notation ?presenceCode . }
+    OPTIONAL {
+        ?customer b2b:ownedBy ?owner .
+        ?owner b2b:ownerName ?ownerName .
+    }
+    OPTIONAL {
+        ?validOrder a b2b:SalesOrder ;
+                    b2b:placedBy ?customer ;
+                    b2b:isCancelled false ;
+                    b2b:totalAmount ?orderAmt .
+    }
+}
+GROUP BY ?customerId ?canonicalName ?tierCode ?presenceCode ?ownerName
+ORDER BY DESC(?validOrderAmount) ASC(?customerId)
